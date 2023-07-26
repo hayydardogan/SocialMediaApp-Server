@@ -7,6 +7,7 @@ var bodyParser = require('body-parser');
 const port = 3000
 const routes = require('./Routes/route');
 
+
 mongoose.connect(mongoString).then(() => {
     console.log("Connected to mongoDB")
     app.listen(port, () => {
