@@ -1,6 +1,10 @@
 const express = require("express")
 const router = express.Router()
 
+const auth = require("../middleware/auth");
+
+const bcrypt = require('bcrypt');
+var jwt = require('jsonwebtoken');
 
 const userModel = require('../Model/userModel');
 const postModel = require('../Model/postModel');
@@ -15,11 +19,42 @@ router.get("/", (req, res) => {
     res.send("Anasayfa");
 });
 
+router.post("/welcome", auth, (req, res) => {
+    res.status(200).send("Welcome bro.")
+})
 
 // Kayıt olma işlemleri
 router.post("/addNewUser", async (req, res) => {
+    const { userEmail } = req.body;
+    const isExist = await userModel.findOne({ userEmail });
+    if (isExist) {
+        return res.status(409).send("Bu e-posta adresi sistemde zaten kayıtlı.");
+    }
+
+    //Kullanıcı parolasını şifreleyelim
+    req.body.userPassword = await bcrypt.hash(req.body.userPassword, 10);
+
+    // Default olarak kullanıcı hesabını aktif ayarlayalım
+    req.body.userIsActive = true;
+
     try {
+
         const user = await userModel.create(req.body);
+
+        // Token oluşturalım
+        const token = jwt.sign(
+            { userID: user._id, userEmail },
+            process.env.TOKEN_KEY,
+            {
+                expiresIn: "2h",
+            }
+        );
+
+        // Token kaydetme
+        user.userToken = token;
+
+
+
         res.status(200).json(user);
     } catch (error) {
         console.log(error.message);
@@ -27,8 +62,40 @@ router.post("/addNewUser", async (req, res) => {
     }
 })
 
+// Login işlemleri
+
+router.post("/login", async (req, res) => {
+    try {
+        const { userEmail, userPassword } = req.body;
+
+        // Böyle bir kullanıcı var mı ?
+        const user = await userModel.findOne({ userEmail });
+
+        if (user && (await bcrypt.compare(userPassword, user.userPassword))) {
+            // Token oluşturma
+            const token = jwt.sign(
+                { userID: user._id, userEmail },
+                process.env.TOKEN_KEY,
+                {
+                    expiresIn: "2h",
+                }
+            );
+
+            // Token kayıt etme
+            user.userToken = token;
+
+            
+            res.status(200).json(user);
+        }
+        res.status(400).send("Hatalı giriş bilgileri.");
+    } catch (error) {
+        console.log(error.message);
+        res.status(500).json({ message: error.message });
+    }
+})
+
 // Yeni paylaşım yapma işlemi
-router.post("/addNewPost", async (req, res) => {
+router.post("/addNewPost", auth , async (req, res) => {
     try {
         const post = await postModel.create(req.body);
         res.status(200).json(post);
@@ -98,9 +165,9 @@ router.post("/toLike", async (req, res) => {
 //Post ID değerine göre paylaşımın beğeni sayısını getirir
 router.get("/getLikeCount/:postID", async (req, res) => {
     try {
-        let {postID} = req.params;
-        const count = await likeModel.find({"postID" : postID}).count();
-        res.status(200).json({"count" : count});
+        let { postID } = req.params;
+        const count = await likeModel.find({ "postID": postID }).count();
+        res.status(200).json({ "count": count });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
@@ -108,10 +175,10 @@ router.get("/getLikeCount/:postID", async (req, res) => {
 })
 
 //Post ID değerine göre paylaşıma yapılan yorumları getirir
-router.get("/getComment/:postID", async (req,res) => {
+router.get("/getComment/:postID", async (req, res) => {
     try {
-        let {postID} = req.params;
-        const comments = await commentModel.find({"commentPost" : postID})
+        let { postID } = req.params;
+        const comments = await commentModel.find({ "commentPost": postID })
         res.status(200).json(comments);
     } catch (error) {
         console.log(error.message);
@@ -122,9 +189,9 @@ router.get("/getComment/:postID", async (req,res) => {
 // Post ID değerine göre paylaşıma yapılan yorum sayısını getirir
 router.get("/getCommentCount/:postID", async (req, res) => {
     try {
-        let {postID} = req.params;
-        const count = await commentModel.find({"commentPost" : postID}).count();
-        res.status(200).json({"count" : count});
+        let { postID } = req.params;
+        const count = await commentModel.find({ "commentPost": postID }).count();
+        res.status(200).json({ "count": count });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
@@ -135,7 +202,7 @@ router.get("/getCommentCount/:postID", async (req, res) => {
 router.get("/getMessages/:messageReceiver&:messageSender", async (req, res) => {
     let { messageReceiver, messageSender } = req.params;
     try {
-        const messages = await messageModel.find({"messageReceiver" : messageReceiver, "messageSender" : messageSender || "messageReceiver"});
+        const messages = await messageModel.find({ "messageReceiver": messageReceiver, "messageSender": messageSender || "messageReceiver" });
         res.status(200).json(messages);
     } catch (error) {
         console.log(error.message);

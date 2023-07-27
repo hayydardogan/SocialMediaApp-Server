@@ -28,6 +28,9 @@ const userSchema = new mongoose.Schema({
     userIsActive: {
         required: true,
         type: Boolean
+    },
+    userToken: {
+        type: String
     }
 })
 
