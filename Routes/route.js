@@ -19,8 +19,10 @@ router.get("/", (req, res) => {
     res.send("Anasayfa");
 });
 
-router.post("/welcome", auth, (req, res) => {
-    res.status(200).send("Welcome bro.")
+router.post("/welcome", auth, async (req, res) => {
+    res.status(200).send("welcome bro");
+
+    //res.status(200).send("your token is : " + req.user.userID)
 })
 
 // Kayıt olma işlemleri
@@ -63,7 +65,6 @@ router.post("/addNewUser", async (req, res) => {
 })
 
 // Login işlemleri
-
 router.post("/login", async (req, res) => {
     try {
         const { userEmail, userPassword } = req.body;
@@ -163,11 +164,11 @@ router.post("/toLike", async (req, res) => {
 })
 
 //Post ID değerine göre paylaşımın beğeni sayısını getirir
-router.get("/getLikeCount/:postID", async (req, res) => {
+router.get("/getLikeCount/:postID", auth, async (req, res) => {
     try {
         let { postID } = req.params;
         const count = await likeModel.find({ "postID": postID }).count();
-        res.status(200).json({ "count": count });
+        res.status(200).json({ "count": count , "user" : req.user.userID});
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
