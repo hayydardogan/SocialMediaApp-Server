@@ -22,15 +22,11 @@ const userSchema = new mongoose.Schema({
         type: String
     },
     userImage: {
-        required: true,
         type: String
     },
     userIsActive: {
         required: true,
         type: Boolean
-    },
-    userToken: {
-        type: String
     }
 })
 

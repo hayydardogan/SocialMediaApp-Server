@@ -1,10 +1,10 @@
 const express = require("express")
 const router = express.Router()
-
+const bodyParser = require("body-parser")
 const auth = require("../middleware/auth");
-
+const cors = require('cors');
 const bcrypt = require('bcrypt');
-var jwt = require('jsonwebtoken');
+const jwt = require('jsonwebtoken');
 
 const userModel = require('../Model/userModel');
 const postModel = require('../Model/postModel');
@@ -14,50 +14,53 @@ const notificationModel = require('../Model/notificationModel');
 const followerRelationModel = require('../Model/followerRelationModel');
 const likeModel = require('../Model/likeModel');
 
-
+router.options("*", cors());
+router.use(cors());
+router.use(bodyParser.urlencoded({ extended: false }));
 router.get("/", (req, res) => {
     res.send("Anasayfa");
 });
 
-router.post("/welcome", auth, async (req, res) => {
-    res.status(200).send("welcome bro");
+// Giriş yapan kullanıcı bilgisini alma
+router.get("/getUserInfo",  (req, res, next) => {
+    let token = req.headers.token;
+    jwt.verify(token, process.env.TOKEN_KEY, async (err, decoded) => {
+        if(err) return res.status(401).json({
+            message: "Oturum açılmadı."
+        })
 
-    //res.status(200).send("your token is : " + req.user.userID)
+        // Token doğrulaması başarılıysa kullanıcıyı bul
+        const user = await userModel.findOne({ _id : decoded.userId});
+
+        if(!user) return console.log("There is an error.");
+
+        return res.status(200).json({
+            user
+        })
+
+        
+    })
 })
 
 // Kayıt olma işlemleri
 router.post("/addNewUser", async (req, res) => {
     const { userEmail } = req.body;
+    
     const isExist = await userModel.findOne({ userEmail });
     if (isExist) {
-        return res.status(409).send("Bu e-posta adresi sistemde zaten kayıtlı.");
+        return res.status(200).json({ message: "Bu kullanıcı adı veya e-posta sistemde zaten kayıtlı." });
     }
 
-    //Kullanıcı parolasını şifreleyelim
-    req.body.userPassword = await bcrypt.hash(req.body.userPassword, 10);
+    // Kullanıcı parolasını şifreleyelim
+    req.body.userPassword = await bcrypt.hash(req.body.userPassword, 10)
 
     // Default olarak kullanıcı hesabını aktif ayarlayalım
     req.body.userIsActive = true;
 
     try {
-
         const user = await userModel.create(req.body);
 
-        // Token oluşturalım
-        const token = jwt.sign(
-            { userID: user._id, userEmail },
-            process.env.TOKEN_KEY,
-            {
-                expiresIn: "2h",
-            }
-        );
-
-        // Token kaydetme
-        user.userToken = token;
-
-
-
-        res.status(200).json(user);
+        res.status(200).json({ message: "Başarılı bir şekilde kayıt oldunuz. Lütfen bekleyin...", clearInput: true });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
@@ -73,22 +76,15 @@ router.post("/login", async (req, res) => {
         const user = await userModel.findOne({ userEmail });
 
         if (user && (await bcrypt.compare(userPassword, user.userPassword))) {
-            // Token oluşturma
-            const token = jwt.sign(
-                { userID: user._id, userEmail },
-                process.env.TOKEN_KEY,
-                {
-                    expiresIn: "2h",
-                }
-            );
 
-            // Token kayıt etme
-            user.userToken = token;
+            let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY);
+            return res.status(200).json({
+                message: 'Başarılı bir şekilde giriş yaptınız. Lütfen bekleyin...',
+                token: token
+            })
 
-            
-            res.status(200).json(user);
         }
-        res.status(400).send("Hatalı giriş bilgileri.");
+        res.status(201).json({ message: "E-Posta veya şifre hatalı." });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
@@ -96,7 +92,7 @@ router.post("/login", async (req, res) => {
 })
 
 // Yeni paylaşım yapma işlemi
-router.post("/addNewPost", auth , async (req, res) => {
+router.post("/addNewPost", auth, async (req, res) => {
     try {
         const post = await postModel.create(req.body);
         res.status(200).json(post);
@@ -168,7 +164,7 @@ router.get("/getLikeCount/:postID", auth, async (req, res) => {
     try {
         let { postID } = req.params;
         const count = await likeModel.find({ "postID": postID }).count();
-        res.status(200).json({ "count": count , "user" : req.user.userID});
+        res.status(200).json({ "count": count, "user": req.user.userID });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
