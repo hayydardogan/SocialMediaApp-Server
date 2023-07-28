@@ -22,30 +22,30 @@ router.get("/", (req, res) => {
 });
 
 // Giriş yapan kullanıcı bilgisini alma
-router.get("/getUserInfo",  (req, res, next) => {
+router.get("/getUserInfo", (req, res, next) => {
     let token = req.headers.token;
     jwt.verify(token, process.env.TOKEN_KEY, async (err, decoded) => {
-        if(err) return res.status(401).json({
+        if (err) return res.status(401).json({
             message: "Oturum açılmadı."
         })
 
         // Token doğrulaması başarılıysa kullanıcıyı bul
-        const user = await userModel.findOne({ _id : decoded.userId});
+        const user = await userModel.findOne({ _id: decoded.userId });
 
-        if(!user) return console.log("There is an error.");
+        if (!user) return console.log("There is an error.");
 
         return res.status(200).json({
             user
         })
 
-        
+
     })
 })
 
 // Kayıt olma işlemleri
 router.post("/addNewUser", async (req, res) => {
     const { userEmail } = req.body;
-    
+
     const isExist = await userModel.findOne({ userEmail });
     if (isExist) {
         return res.status(200).json({ message: "Bu kullanıcı adı veya e-posta sistemde zaten kayıtlı." });
@@ -77,7 +77,11 @@ router.post("/login", async (req, res) => {
 
         if (user && (await bcrypt.compare(userPassword, user.userPassword))) {
 
-            let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY);
+            let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY,  {
+
+                expiresIn: '1h' // 1 saat sonra token süresi dolacak
+
+            });
             return res.status(200).json({
                 message: 'Başarılı bir şekilde giriş yaptınız. Lütfen bekleyin...',
                 token: token
@@ -92,10 +96,13 @@ router.post("/login", async (req, res) => {
 })
 
 // Yeni paylaşım yapma işlemi
-router.post("/addNewPost", auth, async (req, res) => {
+router.post("/addNewPost", async (req, res) => {
     try {
         const post = await postModel.create(req.body);
-        res.status(200).json(post);
+        res.status(200).json({
+            message: "Gönderi başarıyla paylaşıldı.",
+            post: post
+        });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });

@@ -11,11 +11,13 @@ const postSchema = new mongoose.Schema({
     },
     postDate: {
         required: true,
-        type: Date
+        type: Date,
+        default: new Date
     },
     postIsActive: {
         required: true,
-        type: Boolean
+        type: Boolean,
+        default: true
     }
 })
 
