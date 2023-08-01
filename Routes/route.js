@@ -25,9 +25,11 @@ router.get("/", (req, res) => {
 router.get("/getUserInfo", (req, res, next) => {
     let token = req.headers.token;
     jwt.verify(token, process.env.TOKEN_KEY, async (err, decoded) => {
-        if (err) return res.status(401).json({
-            message: "Oturum açılmadı."
-        })
+        if (err) {
+            return res.status(401).json({
+                message: "Oturum açılmadı."
+            })
+        }
 
         // Token doğrulaması başarılıysa kullanıcıyı bul
         const user = await userModel.findOne({ _id: decoded.userId });
@@ -40,6 +42,17 @@ router.get("/getUserInfo", (req, res, next) => {
 
 
     })
+})
+
+// Kullanıcı bilgilerini nick üzerinden alma (Profile sayfası için)
+router.get("/getUserInfoByNick/:nick", async (req, res) => {
+    let { nick } = req.params;
+    let user = userModel.find({ userNick: nick });
+    if (!user) return console.log("There is an error");
+
+    return res.status(200).json({
+        user
+    });
 })
 
 // Kayıt olma işlemleri
@@ -77,7 +90,7 @@ router.post("/login", async (req, res) => {
 
         if (user && (await bcrypt.compare(userPassword, user.userPassword))) {
 
-            let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY,  {
+            let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY, {
 
                 expiresIn: '1h' // 1 saat sonra token süresi dolacak
 
@@ -164,6 +177,32 @@ router.post("/toLike", async (req, res) => {
         console.log(error.message);
         res.status(500).json({ message: error.message });
     }
+})
+
+
+// Kullanıcının takip ettiği kişilerin paylaşımlarını çekme
+// Şimdilik tüm verileri çekiyoruz
+router.get("/getPosts", async (req, res) => {
+    const posts = await postModel.find().populate({ path: "postOwner", select: ["userName", "userSurname", "userImage"] });
+
+    res.status(200).json(posts);
+})
+
+// Post detaylarını çekme
+router.get("/getPostInfo/:postID", async (req, res) => {
+    let { postID } = req.params;
+
+    const post = await postModel.find({ _id: postID }).populate({ path: "postOwner", select: ["userName", "userSurname", "userImage"] });
+
+    if (!post) return res.status(404).json(
+        {
+            message: "Girilen ID değerine ait gönderi bulunamadı"
+        }
+    )
+
+    return res.status(200).json({
+        post
+    })
 })
 
 //Post ID değerine göre paylaşımın beğeni sayısını getirir
