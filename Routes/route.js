@@ -5,7 +5,7 @@ const auth = require("../middleware/auth");
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-
+const ObjectId = require('mongodb')
 const userModel = require('../Model/userModel');
 const postModel = require('../Model/postModel');
 const messageModel = require('../Model/messageModel');
@@ -13,6 +13,7 @@ const commentModel = require('../Model/commentModel');
 const notificationModel = require('../Model/notificationModel');
 const followerRelationModel = require('../Model/followerRelationModel');
 const likeModel = require('../Model/likeModel');
+const { default: mongoose } = require("mongoose");
 
 router.options("*", cors());
 router.use(cors());
@@ -47,7 +48,8 @@ router.get("/getUserInfo", (req, res, next) => {
 // Kullanıcı bilgilerini nick üzerinden alma (Profile sayfası için)
 router.get("/getUserInfoByNick/:nick", async (req, res) => {
     let { nick } = req.params;
-    let user = userModel.find({ userNick: nick });
+    // console.log(nick);
+    let user = await userModel.findOne({ userNick: nick });
     if (!user) return console.log("There is an error");
 
     return res.status(200).json({
@@ -122,6 +124,18 @@ router.post("/addNewPost", async (req, res) => {
     }
 })
 
+// Gönderi silme işlemleri
+router.post("/deletePost/:postID", async (req, res) => {
+    let { postID } = req.params;
+
+    try {
+        await postModel.findByIdAndDelete(postID);
+        res.status(200).send("Deleted");
+    } catch (error) {
+        console.log("There is an error : " + error.message);
+    }
+})
+
 // Bir kullanıcının diğer bir kullanıcıya mesaj gönderme işlemi
 router.post("/sendMessage", async (req, res) => {
     try {
@@ -135,10 +149,33 @@ router.post("/sendMessage", async (req, res) => {
 
 // İlgili gönderiye yorum yapma işlemi
 router.post("/toComment", async (req, res) => {
+
     try {
-        req.body.commentDate = new Date();
-        req.body.commentIsActive = true;
-        const comment = await commentModel.create(req.body);
+
+        // Yorum yapan kullanıcı id
+        let id = req.body.newComment.commentOwner;
+
+        // Yorumu oluşturduk
+        req.body.newComment.commentDate = new Date().getTime();
+        req.body.newComment.commentIsActive = true;
+        const comment = await commentModel.create(req.body.newComment);
+
+
+        // Yorum yapılan gönderi sahibinin id değerini aldık
+        const data = await postModel.find({ "_id": comment.commentPost }).populate({ path: "postOwner", select: ["_id"] });
+        const user_id = data[0].postOwner._id;
+
+
+        // Bildirimimizi oluşturalım
+        const notification = new notificationModel({
+            notificationOwner: user_id,
+            notificationContent: id + ", gönderine yorum yaptı.",
+            notificationIsActive: true,
+            notificationIsRead: false,
+            notificationDate: new Date().getTime()
+        })
+        await notification.save();
+
         res.status(200).json(comment);
     } catch (error) {
         console.log(error.message);
@@ -183,16 +220,36 @@ router.post("/toLike", async (req, res) => {
 // Kullanıcının takip ettiği kişilerin paylaşımlarını çekme
 // Şimdilik tüm verileri çekiyoruz
 router.get("/getPosts", async (req, res) => {
-    const posts = await postModel.find().populate({ path: "postOwner", select: ["userName", "userSurname", "userImage"] });
+    const posts = await postModel.find().populate({ path: "postOwner", select: ["userName", "userSurname", "userImage", "_id", "userNick"] });
 
     res.status(200).json(posts);
+})
+
+
+// Kullanıcının kendi paylaşmış olduğu gönderileri çekme
+// Profile sayfasında göstermek için
+// Çalışmıyor güncelle burayı
+router.get("/getMyPosts/:postOwner", async (req, res) => {
+    let { postOwner } = req.params;
+    res.send(postOwner)
+
+    try {
+
+        const posts = await postModel.$where({ "postOwner": postOwner });
+        res.status(200).json({
+            posts: posts
+        });
+    } catch (error) {
+        console.log(error.message);
+        res.status(500).json({ message: error.message });
+    }
 })
 
 // Post detaylarını çekme
 router.get("/getPostInfo/:postID", async (req, res) => {
     let { postID } = req.params;
 
-    const post = await postModel.find({ _id: postID }).populate({ path: "postOwner", select: ["userName", "userSurname", "userImage"] });
+    const post = await postModel.find({ _id: postID }).populate({ path: "postOwner", select: ["userName", "userSurname", "userImage", "_id", "userNick"] });
 
     if (!post) return res.status(404).json(
         {
@@ -200,17 +257,18 @@ router.get("/getPostInfo/:postID", async (req, res) => {
         }
     )
 
+
     return res.status(200).json({
         post
     })
 })
 
 //Post ID değerine göre paylaşımın beğeni sayısını getirir
-router.get("/getLikeCount/:postID", auth, async (req, res) => {
+router.get("/getLikeCount/:postID", async (req, res) => {
     try {
         let { postID } = req.params;
         const count = await likeModel.find({ "postID": postID }).count();
-        res.status(200).json({ "count": count, "user": req.user.userID });
+        res.status(200).json({ "count": count });
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
@@ -221,7 +279,7 @@ router.get("/getLikeCount/:postID", auth, async (req, res) => {
 router.get("/getComment/:postID", async (req, res) => {
     try {
         let { postID } = req.params;
-        const comments = await commentModel.find({ "commentPost": postID })
+        const comments = await commentModel.find({ "commentPost": postID }).populate({ path: "commentOwner", select: ["userName", "userSurname", "userImage"] }).sort({ commentDate: -1 })
         res.status(200).json(comments);
     } catch (error) {
         console.log(error.message);
