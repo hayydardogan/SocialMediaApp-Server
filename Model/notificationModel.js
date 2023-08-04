@@ -3,7 +3,11 @@ const mongoose = require('mongoose');
 const notificationSchema = new mongoose.Schema({
     notificationOwner: {
         required: true,
-        type: String
+        type: mongoose.Schema.ObjectId, ref: 'userInfo'
+    },
+    notificationSender: {
+        required: true,
+        type: mongoose.Schema.ObjectId, ref: 'userInfo'
     },
     notificationContent: {
         required: true,
@@ -20,8 +24,16 @@ const notificationSchema = new mongoose.Schema({
     notificationIsRead: {
         required: true,
         type: Boolean
+    },
+    isPostNotification: {
+        required: true,
+        type: Boolean
+    },
+    postID: {
+        required: true,
+        type: String
     }
-    
+
 })
 
 module.exports = mongoose.model('notificationInfo', notificationSchema)

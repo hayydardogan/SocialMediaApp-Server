@@ -57,6 +57,7 @@ router.get("/getUserInfoByNick/:nick", async (req, res) => {
     });
 })
 
+
 // Kayıt olma işlemleri
 router.post("/addNewUser", async (req, res) => {
     const { userEmail } = req.body;
@@ -94,7 +95,7 @@ router.post("/login", async (req, res) => {
 
             let token = jwt.sign({ userId: user._id }, process.env.TOKEN_KEY, {
 
-                expiresIn: '1h' // 1 saat sonra token süresi dolacak
+                expiresIn: '365d' // 365 gün sonra token süresi dolacak
 
             });
             return res.status(200).json({
@@ -113,10 +114,11 @@ router.post("/login", async (req, res) => {
 // Yeni paylaşım yapma işlemi
 router.post("/addNewPost", async (req, res) => {
     try {
-        const post = await postModel.create(req.body);
+        req.body.newPost.postDate = new Date().getTime();
+        const posts = await postModel.create(req.body.newPost);
         res.status(200).json({
             message: "Gönderi başarıyla paylaşıldı.",
-            post: post
+            post: posts
         });
     } catch (error) {
         console.log(error.message);
@@ -130,6 +132,31 @@ router.post("/deletePost/:postID", async (req, res) => {
 
     try {
         await postModel.findByIdAndDelete(postID);
+        res.status(200).send("Deleted");
+    } catch (error) {
+        console.log("There is an error : " + error.message);
+    }
+})
+
+router.put("/deleteComment/:commentID", async (req, res) => {
+    let { commentID } = req.params;
+    try {
+        const comment = await commentModel.findById(commentID);
+        comment.commentIsActive = false;
+        comment.save();
+        res.status(200).send("Deleted");
+    } catch (error) {
+        console.log("There is an error : " + error.message);
+    }
+})
+
+// Bildirim silme işlemi
+router.put("/deleteNotification/:ntfID", async (req, res) => {
+    let { ntfID } = req.params;
+    try {
+        const notificaiton = await notificationModel.findById(ntfID);
+        notificaiton.notificationIsActive = false;
+        notificaiton.save();
         res.status(200).send("Deleted");
     } catch (error) {
         console.log("There is an error : " + error.message);
@@ -151,9 +178,8 @@ router.post("/sendMessage", async (req, res) => {
 router.post("/toComment", async (req, res) => {
 
     try {
-
         // Yorum yapan kullanıcı id
-        let id = req.body.newComment.commentOwner;
+        let sender_id = req.body.newComment.commentOwner;
 
         // Yorumu oluşturduk
         req.body.newComment.commentDate = new Date().getTime();
@@ -163,16 +189,19 @@ router.post("/toComment", async (req, res) => {
 
         // Yorum yapılan gönderi sahibinin id değerini aldık
         const data = await postModel.find({ "_id": comment.commentPost }).populate({ path: "postOwner", select: ["_id"] });
-        const user_id = data[0].postOwner._id;
+        const owner_id = data[0].postOwner._id;
 
 
         // Bildirimimizi oluşturalım
         const notification = new notificationModel({
-            notificationOwner: user_id,
-            notificationContent: id + ", gönderine yorum yaptı.",
+            notificationOwner: owner_id,
+            notificationSender: sender_id,
+            notificationContent: ", gönderine yorum yaptı.",
             notificationIsActive: true,
             notificationIsRead: false,
-            notificationDate: new Date().getTime()
+            notificationDate: new Date().getTime(),
+            isPostNotification: true,
+            postID: req.body.newComment.commentPost
         })
         await notification.save();
 
@@ -189,7 +218,18 @@ router.post("/sendNotification", async (req, res) => {
         const notification = await notificationModel.create(req.body);
         res.status(200).json(notification);
     } catch (error) {
-        console.log(error.message);
+        res.status(500).json({ message: error.message });
+    }
+})
+
+router.get("/getNotifications/:owner", async (req, res) => {
+    try {
+        let { owner } = req.params;
+        const notifications = await notificationModel.find({ notificationOwner: owner, notificationIsActive: true }).populate({ path: "notificationSender", select: ["userName", "userSurname", "userImage", "_id", "userNick"] }).sort({ notificationDate: -1 });
+        res.status(200).json({
+            notifications
+        });
+    } catch (error) {
         res.status(500).json({ message: error.message });
     }
 })
@@ -229,20 +269,24 @@ router.get("/getPosts", async (req, res) => {
 // Kullanıcının kendi paylaşmış olduğu gönderileri çekme
 // Profile sayfasında göstermek için
 // Çalışmıyor güncelle burayı
-router.get("/getMyPosts/:postOwner", async (req, res) => {
-    let { postOwner } = req.params;
-    res.send(postOwner)
-
+router.get("/getMyPosts/:po", async (req, res) => {
+    let { po } = req.params;
     try {
-
-        const posts = await postModel.$where({ "postOwner": postOwner });
-        res.status(200).json({
-            posts: posts
+        const posts = await postModel.find().populate({ path: "postOwner" }).sort({ postDate: -1 });
+        const myPosts = []
+        posts.forEach(p => {
+            if(p.postOwner._id == po) {
+                myPosts.push(p);
+            };
         });
+        
+        res.status(200).send({
+            myPosts
+        })
     } catch (error) {
-        console.log(error.message);
-        res.status(500).json({ message: error.message });
+        console.log("There is an error : " + error.message);
     }
+
 })
 
 // Post detaylarını çekme
@@ -279,7 +323,7 @@ router.get("/getLikeCount/:postID", async (req, res) => {
 router.get("/getComment/:postID", async (req, res) => {
     try {
         let { postID } = req.params;
-        const comments = await commentModel.find({ "commentPost": postID }).populate({ path: "commentOwner", select: ["userName", "userSurname", "userImage"] }).sort({ commentDate: -1 })
+        const comments = await commentModel.find({ "commentPost": postID, "commentIsActive": true }).populate({ path: "commentOwner", select: ["userName", "userSurname", "userImage"] }).sort({ commentDate: -1 })
         res.status(200).json(comments);
     } catch (error) {
         console.log(error.message);
