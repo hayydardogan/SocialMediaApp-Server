@@ -52,9 +52,24 @@ router.get("/getUserInfoByNick/:nick", async (req, res) => {
     let user = await userModel.findOne({ userNick: nick });
     if (!user) return console.log("There is an error");
 
+
     return res.status(200).json({
         user
     });
+})
+
+// Takipçi ve takip edilen sayısı bulma
+router.get("/getFollowCount/:id", async (req, res) => {
+    let { id } = req.params;
+    let followerCount = await followerRelationModel.find({ "followingUser": id }).count();
+    let followingCount = await followerRelationModel.find({ "followerUser": id }).count();
+
+    res.status(200).send({
+        count: {
+            followingCount: followingCount,
+            followerCount: followerCount
+        }
+    })
 })
 
 
@@ -138,6 +153,7 @@ router.post("/deletePost/:postID", async (req, res) => {
     }
 })
 
+// Yorum silme işlemleri
 router.put("/deleteComment/:commentID", async (req, res) => {
     let { commentID } = req.params;
     try {
@@ -222,6 +238,8 @@ router.post("/sendNotification", async (req, res) => {
     }
 })
 
+
+// Bildirimleri alma
 router.get("/getNotifications/:owner", async (req, res) => {
     try {
         let { owner } = req.params;
@@ -232,6 +250,39 @@ router.get("/getNotifications/:owner", async (req, res) => {
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
+})
+
+// Kullanıcı şifre değiştirme işlemleri
+router.put("/changePassword/:userID&:newPass", async (req, res) => {
+
+    let { userID, newPass } = req.params;
+
+    // Kullanıcı parolasını şifreleyelim
+    newPass = await bcrypt.hash(newPass, 10)
+
+    const user = await userModel.findById(userID);
+    user.userPassword = newPass;
+    user.save();
+
+    res.status(200).send("Success");
+})
+
+// Kullanıcı bilgi güncelleme işlemleri
+router.put("/updateUserInfo", async (req, res) => {
+
+    const user = await userModel.findById(req.body.newInfo.userID);
+
+    user.userName = req.body.newInfo.userName,
+        user.userSurname = req.body.newInfo.userSurname,
+        user.userNick = req.body.newInfo.userNick,
+        user.userBiography = req.body.newInfo.userBiography,
+        user.userImage = req.body.newInfo.userImage,
+        user.userEmail = req.body.newInfo.userEmail,
+        user.userCoverImage = req.body.newInfo.userCoverImage
+
+    user.save();
+
+    res.status(200).send("Success");
 })
 
 // Bir kullanıcıyı takip etme işlemleri
@@ -256,7 +307,6 @@ router.post("/toLike", async (req, res) => {
     }
 })
 
-
 // Kullanıcının takip ettiği kişilerin paylaşımlarını çekme
 // Şimdilik tüm verileri çekiyoruz
 router.get("/getPosts", async (req, res) => {
@@ -268,18 +318,17 @@ router.get("/getPosts", async (req, res) => {
 
 // Kullanıcının kendi paylaşmış olduğu gönderileri çekme
 // Profile sayfasında göstermek için
-// Çalışmıyor güncelle burayı
 router.get("/getMyPosts/:po", async (req, res) => {
     let { po } = req.params;
     try {
         const posts = await postModel.find().populate({ path: "postOwner" }).sort({ postDate: -1 });
         const myPosts = []
         posts.forEach(p => {
-            if(p.postOwner._id == po) {
+            if (p.postOwner._id == po) {
                 myPosts.push(p);
             };
         });
-        
+
         res.status(200).send({
             myPosts
         })

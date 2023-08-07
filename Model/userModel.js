@@ -28,6 +28,9 @@ const userSchema = new mongoose.Schema({
     userImage: {
         type: String
     },
+    userCoverImage:{
+        type: String
+    },
     userIsActive: {
         required: true,
         type: Boolean
