@@ -30,7 +30,6 @@ const notificationSchema = new mongoose.Schema({
         type: Boolean
     },
     postID: {
-        required: true,
         type: String
     }
 

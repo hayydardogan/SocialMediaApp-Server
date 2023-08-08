@@ -61,8 +61,8 @@ router.get("/getUserInfoByNick/:nick", async (req, res) => {
 // Takipçi ve takip edilen sayısı bulma
 router.get("/getFollowCount/:id", async (req, res) => {
     let { id } = req.params;
-    let followerCount = await followerRelationModel.find({ "followingUser": id }).count();
-    let followingCount = await followerRelationModel.find({ "followerUser": id }).count();
+    let followerCount = await followerRelationModel.find({ "followerUser": id }).count();
+    let followingCount = await followerRelationModel.find({ "followingUser": id }).count();
 
     res.status(200).send({
         count: {
@@ -72,6 +72,19 @@ router.get("/getFollowCount/:id", async (req, res) => {
     })
 })
 
+
+// Arama sayfası işlemleri
+router.get("/searchUser/:text", async (req, res) => {
+    let { text } = req.params;
+
+    const users = await userModel.find();
+    const result = users.filter(x => x.userNick.toLowerCase().includes(text.toLowerCase()) || x.userName.toLocaleLowerCase().includes(text.toLowerCase()));
+
+    res.status(200).send({
+        result: result
+    })
+
+})
 
 // Kayıt olma işlemleri
 router.post("/addNewUser", async (req, res) => {
@@ -238,7 +251,6 @@ router.post("/sendNotification", async (req, res) => {
     }
 })
 
-
 // Bildirimleri alma
 router.get("/getNotifications/:owner", async (req, res) => {
     try {
@@ -285,15 +297,60 @@ router.put("/updateUserInfo", async (req, res) => {
     res.status(200).send("Success");
 })
 
-// Bir kullanıcıyı takip etme işlemleri
-router.post("/addFollowerRelation", async (req, res) => {
-    try {
-        const relation = await followerRelationModel.create(req.body);
-        res.status(200).json(relation);
-    } catch (error) {
-        console.log(error.message);
-        res.status(500).json({ message: error.message });
+// X - Y 'yi takip ediyor mu ?
+router.get("/getFollowerRelation/:activeID&:profileID", async (req, res) => {
+    let { activeID, profileID } = req.params;
+    const relation = await followerRelationModel.find({ followingUser: activeID, followerUser: profileID }).count();
+    if (relation > 0) {
+        res.status(200).send({
+            result: true
+        })
+    } else {
+        res.status(200).send({
+            result: false
+        })
     }
+})
+
+// Bir kullanıcıyı takip etme işlemleri
+router.post("/addFollowerRelation/:followingID&:followerID", async (req, res) => {
+    try {
+        let { followingID, followerID } = req.params;
+
+        const relation = {
+            followingUser: followingID,
+            followerUser: followerID
+        }
+        await followerRelationModel.create(relation);
+        let notification = {
+            notificationOwner: followerID,
+            notificationSender: followingID,
+            notificationContent: ", seni takip etmeye başladı.",
+            notificationDate: new Date().getTime(),
+            notificationIsActive: true,
+            notificationIsRead: false,
+            isPostNotification: false,
+        }
+        await notificationModel.create(notification);
+        res.status(200).send({
+            result: true
+        })
+    } catch (error) {
+        console.log("There is an error : " + error.message);
+        res.status(200).send({
+            result: false
+        })
+    }
+})
+
+// Bir kullanıcıyı takipten çıkarma işlemleri
+router.delete("/removeFollowerRelation/:followingID&:followerID", async (req, res) => {
+    let { followingID, followerID } = req.params;
+
+    let relation = await followerRelationModel.deleteOne({ followingUser: followingID, followerUser: followerID });
+    res.status(200).send({
+        result: true
+    })
 })
 
 //Bir paylaşımı beğenme işlemleri
@@ -314,7 +371,6 @@ router.get("/getPosts", async (req, res) => {
 
     res.status(200).json(posts);
 })
-
 
 // Kullanıcının kendi paylaşmış olduğu gönderileri çekme
 // Profile sayfasında göstermek için
