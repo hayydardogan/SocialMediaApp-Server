@@ -61,8 +61,8 @@ router.get("/getUserInfoByNick/:nick", async (req, res) => {
 // Takipçi ve takip edilen sayısı bulma
 router.get("/getFollowCount/:id", async (req, res) => {
     let { id } = req.params;
-    let followerCount = await followerRelationModel.find({ "followerUser": id }).count();
-    let followingCount = await followerRelationModel.find({ "followingUser": id }).count();
+    let followerCount = await followerRelationModel.find({ followerUser: id }).count();
+    let followingCount = await followerRelationModel.find({ followingUser: id }).count();
 
     res.status(200).send({
         count: {
@@ -366,11 +366,31 @@ router.post("/toLike", async (req, res) => {
 
 // Kullanıcının takip ettiği kişilerin paylaşımlarını çekme
 // Şimdilik tüm verileri çekiyoruz
-router.get("/getPosts", async (req, res) => {
-    const posts = await postModel.find().populate({ path: "postOwner", select: ["userName", "userSurname", "userImage", "_id", "userNick"] });
+router.get("/getPosts/:userID", async (req, res) => {
+    let { userID } = req.params;
+    const posts = await postModel.find();
+    let control = false;
+    let index = 0;
+    let myPosts = [];
+    console.log(posts.length);
 
-    res.status(200).json(posts);
+    posts.forEach(async p => {
+        let count = await followerRelationModel.find({ followingUser: userID, followerUser: p.postOwner }).count();
+        if (count > 0) {
+            myPosts.push(p);
+        }
+
+        if (index >= posts.length) {
+            control = true;
+        }
+        index += 1;
+        console.log(index);
+    });
+    res.status(200).send();
+
 })
+
+
 
 // Kullanıcının kendi paylaşmış olduğu gönderileri çekme
 // Profile sayfasında göstermek için
@@ -458,6 +478,25 @@ router.get("/getMessages/:messageReceiver&:messageSender", async (req, res) => {
         console.log(error.message);
         res.status(500).json({ message: error.message });
     }
+})
+
+
+// Okunmayan bildirimlerin sayısı 
+// Navbar'da bildirim butonuna uyarı eklemek için
+router.get("/getUnreadNotification/:userID", async (req, res) => {
+    let { userID } = req.params;
+    let count = await notificationModel.find({ notificationOwner: userID, notificationIsRead: false }).count();
+
+    res.status(200).send({
+        count: count
+    })
+})
+
+// Bildirimler görüntülendiğinde okundu olarak işaretleme
+router.put("/readNotification/:userID", async (req, res) => {
+    let { userID } = req.params;
+    await notificationModel.updateMany({ notificationOwner: userID, notificationIsActive: true, notificationIsRead: false }, { $set: { notificationIsRead: true } });
+    res.status(200).send();
 })
 
 module.exports = router;
