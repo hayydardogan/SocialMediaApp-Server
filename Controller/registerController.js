@@ -15,7 +15,9 @@ const addNewUser = async (req, res) => {
     req.body.userIsActive = true;
 
     try {
-        const user = await userModel.create(req.body);
+        req.body.userImage = "https://icon-library.com/images/default-profile-icon/default-profile-icon-24.jpg";
+        req.body.userCoverImage = "https://flowbite.com/docs/images/examples/image-3@2x.jpg"
+        await userModel.create(req.body);
 
         res.status(200).json({ result : true });
     } catch (error) {
