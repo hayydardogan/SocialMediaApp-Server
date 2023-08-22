@@ -1,11 +1,16 @@
 const userModel = require('../Model/userModel');
 const bcrypt = require('bcrypt');
 const addNewUser = async (req, res) => {
-    const { userEmail } = req.body;
+    const { userEmail, userNick } = req.body;
 
-    const isExist = await userModel.findOne({ userEmail });
-    if (isExist) {
-        return res.status(200).json({ message: "Bu kullanıcı adı veya e-posta sistemde zaten kayıtlı." });
+    const isExistEmail = await userModel.findOne({ userEmail });
+    if (isExistEmail) {
+        return res.status(200).json({ result: "email"});
+    }
+
+    const isExistNick = await userModel.findOne({ userNick });
+    if (isExistNick) {
+        return res.status(200).json({ result: "usernick" });
     }
 
     // Kullanıcı parolasını şifreleyelim

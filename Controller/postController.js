@@ -20,7 +20,9 @@ const deletePost = async (req, res) => {
     let { postID } = req.params;
 
     try {
-        await postModel.findByIdAndDelete(postID);
+        let temp = await postModel.findByIdAndUpdate(postID);
+        temp.postIsActive = false;
+        temp.save();
         res.status(200).send("Deleted");
     } catch (error) {
         console.log("There is an error : " + error.message);
@@ -28,27 +30,45 @@ const deletePost = async (req, res) => {
 }
 
 const getPosts = async (req, res) => {
-    let { userID } = req.params;
-    const posts = await postModel.find();
+    const { userID } = req.params;
+    const posts = await postModel.find({ postIsActive: true }).populate({ path: "postOwner" }).sort({ postDate: -1 });
     let myPosts = [];
     let index = 0;
 
-    posts.forEach(p => {
-        let count = followerRelationModel.find({ followingUser: userID, followerUser: p.postOwner }).count();
-        if (count > 0) {
-            myPosts.push(p);
-        }
-    });
+    if (posts.length > 0) {
+        posts.forEach(async p => {
+            let temp = await followerRelationModel.find({ "followingUser": userID, "followerUser": p.postOwner._id });
+            if (temp.length > 0) {
+                await myPosts.push(p);
+            }
+            
+            if (index == posts.length - 1) {
+                myPosts.sort((a,b) => {
+                    const dateA = a.postDate;
+                    const dateB = b.postDate;
+                    if(dateA < dateB) return 1;
+                    if(dateA > dateB) return -1;
 
-    res.status(200).send({
-        myPosts
-    })
+                    return 0;
+                })
+                res.status(200).send({
+                    myPosts
+                })
+            }
+            index++;
+        });
+
+    } else {
+        res.status(200).send({
+            myPosts
+        })
+    }
 }
 
 const getMyPosts = async (req, res) => {
     let { po } = req.params;
     try {
-        const posts = await postModel.find().populate({ path: "postOwner" }).sort({ postDate: -1 });
+        const posts = await postModel.find({ postIsActive: true }).populate({ path: "postOwner" }).sort({ postDate: -1 });
         const myPosts = []
         posts.forEach(p => {
             if (p.postOwner._id == po) {

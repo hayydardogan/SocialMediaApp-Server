@@ -1,5 +1,6 @@
 const userModel = require('../Model/userModel');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 const getUserInfo = (req, res, next) => {
     let token = req.headers.token;
     jwt.verify(token, process.env.TOKEN_KEY, async (err, decoded) => {

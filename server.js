@@ -6,6 +6,8 @@ const mongoString = process.env.DB_URL
 var bodyParser = require('body-parser');
 const port = 3000
 
+const chatConroller = require('./Controller/chatController')
+
 const routes = require('./Routes/route');
 const notificationRoute = require('./Routes/notificationRoute')
 const userRoute = require('./Routes/userRoute')
@@ -18,6 +20,7 @@ const likeRoute = require('./Routes/likeRoute')
 
 
 
+
 mongoose.connect(mongoString).then(() => {
     console.log("Connected to mongoDB")
     app.listen(port, () => {
@@ -26,6 +29,10 @@ mongoose.connect(mongoString).then(() => {
 }).catch((error) => {
     console.log("There is an error : " + error.message)
 })
+
+
+
+
 app.use(express.json());
 app.use("/api", routes);
 app.use("/api", notificationRoute)
@@ -36,4 +43,6 @@ app.use("/api", followerRelationRoute)
 app.use("/api", postRoute)
 app.use("/api", commentRoute)
 app.use("/api", likeRoute)
+
+
 

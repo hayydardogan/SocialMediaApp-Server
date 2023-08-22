@@ -22,7 +22,7 @@ const login = async (req, res) => {
             })
 
         }
-        res.status(201).json({ message: "E-Posta veya şifre hatalı." });
+        res.status(201).json({ message: "E-Posta veya şifre hatalı."});
     } catch (error) {
         console.log(error.message);
         res.status(500).json({ message: error.message });
